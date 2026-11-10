@@ -66,7 +66,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .join { background: var(--panel); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px; align-self: center; }
 .join h2 { font-family: var(--display); margin: 0; font-size: 20px; }
 .join p { margin: 0; color: var(--muted-on-dark); font-size: 14px; line-height: 1.4; }
-.jteam { display: flex; justify-content: space-between; align-items: center; background: var(--panel-2); border-radius: 10px; padding: 9px 12px; font-weight: 700; }
+.jteam { display: flex; justify-content: space-between; align-items: center; gap: 6px; background: var(--panel-2); border-radius: 10px; padding: 7px 10px; font-weight: 700; font-size: 14px; min-width: 0; }
+.jteam > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jlist { display: grid; grid-template-columns: 1fr; gap: 5px; }
+.jteam .x { background: none; border: 0; color: #ff8a7d; font-size: 12px; font-weight: 700; padding: 0 2px; }
 .jteam .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
 .jteam .cnt { font-size: 12px; color: var(--muted-on-dark); font-weight: 600; }
 .jteam .cnt.live { color: #7fe0a8; }
@@ -220,7 +223,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
     <h2 id="joinTitle">Únanse desde el celular</h2>
     <div id="joinCode"></div>
     <p id="joinHint"></p>
-    <div id="joinList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div id="joinList" class="jlist"></div>
     <div>
       <p style="margin-bottom:8px">Duración</p>
       <div class="row" id="durRow">
@@ -270,8 +273,8 @@ const TEAM_DEFS = [
   { name: "Moto Express", color: "#6c7a1f" }
 ];
 
-const TEAM_COLORS = ["#e0742f", "#3b8fd9", "#8a5bd6", "#2a9d8f", "#c94f7c", "#6c7a1f", "#b5651d", "#4a6fa5"];
-const MAX_TEAMS = 8;
+const TEAM_COLORS = ["#e0742f", "#3b8fd9", "#8a5bd6", "#2a9d8f", "#c94f7c", "#6c7a1f", "#b5651d", "#4a6fa5", "#d1495b", "#3d8b37"];
+const MAX_TEAMS = 10;
 
 const RULES = [
   { big: "Formen su empresa", p: "Equipos de 5. Cada quien con un rol: director, finanzas, negociador, analista y vocero.", c: "#e0742f" },
@@ -909,8 +912,9 @@ function endGame() {
   const c = openCard("#142430", "Fin del juego", `Gana ${esc(state.teams[rows[0][0]].name)}`, `
     ${rankHtml(rows, state.teams.map(t => [t.name, t.color]))}
     <div class="tip">Cierre: ¿qué decisión tomaron sin información? ¿Les sirvió conocer su límite o su MAAN? ¿Qué fase se saltaron más?</div>
-    <div class="actions"><button class="btn ghost" id="ok">Ver tablero</button></div>`);
+    <div class="actions"><button class="btn" id="again">Nueva partida</button><button class="btn ghost" id="ok">Ver tablero</button></div>`);
   c.querySelector("#ok").onclick = () => { shownStep = state.step; closeCard(); };
+  c.querySelector("#again").onclick = openResetCard;
 }
 function rankHtml(rows, teams) {
   return `<div class="rank">${rows.map(([i, total], n) => `<div><span class="pos">${n + 1}</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${teams[i][1]};margin-right:8px"></span>${esc(teams[i][0])}</span><span class="num">${money(total)}</span></div>`).join("")}</div>`;
@@ -943,10 +947,35 @@ function renderJoinPanel() {
   }
   const list = document.getElementById("joinList");
   if (net.kind === "host" && !state.joined) { list.innerHTML = ""; return; }
+  const canRemove = net.kind === "host" && state.joined && state.ph === "intro";
   list.innerHTML = state.teams.map((t, i) => {
     const n = teamCounts[i] || 0;
-    return `<div class="jteam"><span><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span><span class="cnt ${n ? "live" : ""}">${net.kind === "host" ? (n ? `${n} celular${n > 1 ? "es" : ""}` : "desconectado") : ""}</span></div>`;
+    return `<div class="jteam"><span><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span><span class="cnt ${n ? "live" : ""}">${net.kind === "host" ? (n ? `${n} cel.` : "sin cel.") : ""}${canRemove ? ` <button class="x" data-rm="${i}" aria-label="Quitar equipo">Quitar</button>` : ""}</span></div>`;
   }).join("");
+  list.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => removeTeam(+b.dataset.rm));
+}
+
+function freeColor() {
+  const used = state.teams.map(t => t.color);
+  return TEAM_COLORS.find(c => !used.includes(c)) || TEAM_COLORS[state.teams.length % TEAM_COLORS.length];
+}
+
+function kickConn(c, msg) {
+  try { c.send({ type: "reset", msg }); } catch (e) {}
+  setTimeout(() => { try { c.close(); } catch (e) {} }, 400);
+  net.conns.delete(c);
+}
+
+function removeTeam(i) {
+  if (state.ph !== "intro" || !state.teams[i]) return;
+  state.teams.splice(i, 1);
+  [...net.conns].forEach(c => {
+    if (c.team === i) kickConn(c, "El profesor quitó a su equipo. Pueden unirse de nuevo.");
+    else if (c.team !== null && c.team > i) { c.team--; try { c.send({ type: "welcome", team: c.team }); } catch (e) {} }
+  });
+  if (!state.teams.length) { state.joined = false; state.teams = TEAM_DEFS.map(d => ({ ...d, cash: 1000000, pos: 0, skip: false, maan: false, discount: false })); }
+  state.turn = 0;
+  publish(); recount(); renderIntro();
 }
 
 /* Red: pantalla del salón */
@@ -1030,8 +1059,8 @@ function onHostData(conn, d) {
     if (idx === -1) {
       if (state.ph !== "intro") return conn.send({ type: "deny", msg: "El juego ya empezó. Escribe el nombre exacto de tu equipo." });
       if (!state.joined) { state.joined = true; state.teams = []; }
-      if (state.teams.length >= MAX_TEAMS) return conn.send({ type: "deny", msg: "Ya hay 8 equipos. Únete a uno que ya exista." });
-      state.teams.push({ name, color: TEAM_COLORS[state.teams.length], cash: 1000000, pos: 0, skip: false, maan: false, discount: false });
+      if (state.teams.length >= MAX_TEAMS) return conn.send({ type: "deny", msg: "Ya hay 10 equipos. Únete a uno que ya exista." });
+      state.teams.push({ name, color: freeColor(), cash: 1000000, pos: 0, skip: false, maan: false, discount: false });
       idx = state.teams.length - 1;
     }
     conn.team = idx;
@@ -1087,6 +1116,7 @@ function connectToHost() {
     if (d.type === "welcome") { phone.team = d.team; phone.status = "in"; renderPhone(); }
     if (d.type === "deny") { phone.status = "form"; phone.err = String(d.msg || "No se pudo unir."); try { conn.close(); } catch (e) {} renderPhone(); }
     if (d.type === "state") { phone.snap = d.s; if (phone.status === "in") renderPhone(); }
+    if (d.type === "reset") { const code = phone.code; leaveGame(); phone.code = code; phone.name = ""; phone.err = String(d.msg || "La partida terminó."); renderPhone(); }
   });
   conn.on("close", () => { if (phone.conn === conn && phone.status === "in") { phone.status = "lost"; renderPhone(); scheduleRetry(); } });
 }
@@ -1102,7 +1132,7 @@ function scheduleRetry() {
 }
 
 function leaveGame() {
-  phone.status = "form"; phone.team = null; phone.snap = null;
+  phone.status = "form"; phone.team = null; phone.snap = null; phone.err = ""; phone.n = 0; phone.sentStep = -1;
   clearTimeout(phone.retry);
   try { localStorage.removeItem("negociopolis-phone"); } catch (e) {}
   if (phone.conn) { try { phone.conn.close(); } catch (e) {} phone.conn = null; }
@@ -1245,18 +1275,33 @@ document.querySelectorAll("#durRow [data-min]").forEach(b => b.addEventListener(
 document.getElementById("clockBtn").addEventListener("click", () => { clockTimer ? stopClock() : startClock(); });
 document.getElementById("endBtn").addEventListener("click", endGame);
 document.getElementById("rulesBtn").addEventListener("click", () => { showingRules = true; ruleIdx = 0; closeCard(); shownStep = -1; renderHost(); });
-document.getElementById("resetBtn").addEventListener("click", () => {
-  const c = openCard("#6b2b26", "Nueva partida", "¿Empezar de cero?", `<p>Se reinician el dinero, los negocios y el tiempo. Los equipos se quedan.</p><div class="actions"><button class="btn bad" id="y">Sí, empezar</button><button class="btn ghost" id="n">Cancelar</button></div>`);
-  c.querySelector("#y").onclick = () => {
+function openResetCard() {
+  const c = openCard("#6b2b26", "Nueva partida", "¿Cómo quieren empezar?", `
+    <p>Todo nuevo borra los equipos y saca a los celulares para que se unan otros.</p>
+    <div class="actions">
+      <button class="btn bad" id="all">Todo nuevo</button>
+      <button class="btn" id="same">Mismos equipos</button>
+      <button class="btn ghost" id="n">Cancelar</button>
+    </div>`);
+  const restart = (keepTeams) => {
     clearInterval(clockTimer); clockTimer = null;
     const st = state.step;
-    const keep = state.teams.map(t => ({ name: t.name, color: t.color }));
-    keep.joined = state.joined;
+    let keep = null;
+    if (keepTeams) {
+      keep = state.teams.map(t => ({ name: t.name, color: t.color }));
+      keep.joined = state.joined;
+    } else {
+      [...net.conns].forEach(cn => kickConn(cn, "La partida terminó. Únanse a la nueva con el código de la pantalla."));
+      teamCounts = [];
+    }
     state = fresh(state.minutes, keep); state.step = st + 1;
-    ruleIdx = 0; shownStep = -1; closeCard(); publish(); renderHost();
+    ruleIdx = 0; shownStep = -1; showingRules = false; closeCard(); publish(); renderHost();
   };
-  c.querySelector("#n").onclick = () => { closeCard(); shownStep = -1; renderPending(); };
-});
+  c.querySelector("#all").onclick = () => restart(false);
+  c.querySelector("#same").onclick = () => restart(true);
+  c.querySelector("#n").onclick = () => { closeCard(); shownStep = -1; if (state.ph === "play") renderPending(); };
+}
+document.getElementById("resetBtn").addEventListener("click", openResetCard);
 
 /* Arranque */
 state = load() || fresh(12);
