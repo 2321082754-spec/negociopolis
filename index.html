@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Negociópolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Pantalla del salón: tablero + marcador. Celulares: control del equipo. */
+  --bg: #12202b;
+  --panel: #1a2d3b;
+  --panel-2: #213847;
+  --board: #e9eef0;
+  --ink: #142430;
+  --muted: #5d6f7a;
+  --line: #c3cfd4;
+  --accent: #f2b33d;
+  --good: #2f9e63;
+  --bad: #d4483b;
+  --text-on-dark: #eef3f5;
+  --muted-on-dark: #9fb3bf;
+  --g1: #e0742f;
+  --g2: #3b8fd9;
+  --g3: #8a5bd6;
+  --g4: #2a9d8f;
+  --display: "Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text-on-dark); font-family: var(--body); font-size: 15px; }
+button { font-family: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hidden { display: none !important; }
+
+.btn { border: 0; border-radius: 12px; padding: 12px 20px; font-weight: 700; font-size: 16px; background: var(--accent); color: #1d1607; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.big { font-size: clamp(17px, 1.7vw, 24px); padding: 16px 34px; }
+.btn.ghost { background: transparent; color: var(--text-on-dark); box-shadow: inset 0 0 0 2px #3a5466; }
+.btn.good { background: var(--good); color: #fff; }
+.btn.bad { background: var(--bad); color: #fff; }
+.btn.small { padding: 7px 12px; font-size: 13px; border-radius: 9px; }
+.btn.on { background: var(--accent); color: #1d1607; box-shadow: none; }
+
+/* Intro con tarjetas de reglas */
+.intro { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; padding: 24px; }
+@media (max-width: 900px) { .intro { grid-template-columns: 1fr; } }
+.stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+.logo { font-family: var(--display); font-weight: 800; font-size: clamp(36px, 5vw, 72px); color: var(--accent); margin: 0; letter-spacing: -.02em; line-height: 1; }
+.rule {
+  width: min(640px, 100%); min-height: 300px; border-radius: 24px; padding: 34px 38px;
+  color: #fff; display: flex; flex-direction: column; justify-content: space-between; gap: 18px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35);
+}
+.rule .n { font-family: var(--display); font-size: 15px; font-weight: 800; opacity: .8; letter-spacing: .08em; }
+.rule .big { font-family: var(--display); font-weight: 800; font-size: clamp(34px, 4.4vw, 60px); line-height: 1.02; margin: 0; text-wrap: balance; }
+.rule p { margin: 0; font-size: clamp(17px, 1.6vw, 22px); line-height: 1.35; max-width: 32ch; }
+.dots { display: flex; gap: 8px; }
+.dots span { width: 10px; height: 10px; border-radius: 50%; background: #3a5466; }
+.dots span.on { background: var(--accent); }
+.nav { display: flex; gap: 12px; align-items: center; }
+.join { background: var(--panel); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 14px; align-self: center; }
+.join h2 { font-family: var(--display); margin: 0; font-size: 20px; }
+.join p { margin: 0; color: var(--muted-on-dark); font-size: 14px; line-height: 1.4; }
+.jteam { display: flex; justify-content: space-between; align-items: center; background: var(--panel-2); border-radius: 10px; padding: 9px 12px; font-weight: 700; }
+.jteam .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.jteam .cnt { font-size: 12px; color: var(--muted-on-dark); font-weight: 600; }
+.jteam .cnt.live { color: #7fe0a8; }
+
+/* Juego en pantalla */
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; padding: 18px; min-height: 100%; }
+@media (max-width: 1000px) { .app { grid-template-columns: 1fr; } }
+.board {
+  aspect-ratio: 1; max-height: calc(100vh - 36px); max-width: 100%; margin: 0 auto; width: 100%;
+  display: grid; grid-template-columns: 1.25fr repeat(4, 1fr) 1.25fr; grid-template-rows: 1.25fr repeat(4, 1fr) 1.25fr;
+  gap: 4px; background: #0c1720; padding: 4px; border-radius: 14px;
+}
+.cell { background: var(--board); color: var(--ink); border-radius: 6px; position: relative; display: flex; flex-direction: column; padding: 6px 7px; overflow: hidden; min-width: 0; }
+.cell .band { height: 9px; border-radius: 3px; margin-bottom: 4px; flex: none; }
+.cell .kind { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.cell .name { font-weight: 700; font-size: clamp(10px, 1.05vw, 14px); line-height: 1.15; }
+.cell .price { margin-top: auto; font-size: clamp(10px, .9vw, 13px); font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.cell.corner { background: #fbe7bf; }
+.cell.corner .name { font-family: var(--display); font-size: clamp(12px, 1.3vw, 18px); }
+.cell.decision { background: #dfe9f7; }
+.cell.event { background: #f6dede; }
+.cell.maan { background: #dcefe3; }
+.cell .owner { position: absolute; top: 0; right: 0; font-size: 10px; font-weight: 700; color: #fff; padding: 2px 6px; border-bottom-left-radius: 6px; }
+.cell.active { box-shadow: inset 0 0 0 3px var(--accent); }
+.tokens { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.token { width: clamp(14px, 1.5vw, 22px); height: clamp(14px, 1.5vw, 22px); border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); font-size: 10px; color: #fff; font-weight: 800; display: grid; place-items: center; }
+.center { grid-column: 2 / 6; grid-row: 2 / 6; background: var(--panel); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; text-align: center; }
+.center .logo { font-size: clamp(30px, 4.2vw, 60px); }
+.turn-now { font-size: clamp(16px, 1.7vw, 24px); font-weight: 700; }
+.pill { padding: 2px 12px; border-radius: 999px; color: #fff; }
+.dice { display: flex; gap: 12px; }
+.die { width: clamp(48px, 5vw, 72px); height: clamp(48px, 5vw, 72px); background: #fff; color: var(--ink); border-radius: 12px; font-family: var(--display); font-size: clamp(26px, 3vw, 42px); font-weight: 800; display: grid; place-items: center; }
+.die.rolling { animation: shake .35s linear infinite; }
+@keyframes shake { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+@media (prefers-reduced-motion: reduce) { .die.rolling { animation: none; } }
+.log { font-size: 14px; color: var(--muted-on-dark); min-height: 1.4em; max-width: 44ch; }
+
+.side { display: flex; flex-direction: column; gap: 14px; }
+.box { background: var(--panel); border-radius: 12px; padding: 14px; }
+.box h2 { font-family: var(--display); font-size: 17px; margin: 0 0 10px; font-weight: 800; }
+.clock { font-family: var(--display); font-size: 52px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock.low { color: var(--bad); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.teams { display: flex; flex-direction: column; gap: 8px; }
+.team { display: grid; grid-template-columns: 8px 1fr auto; gap: 10px; align-items: center; background: var(--panel-2); border-radius: 10px; padding: 8px 10px 8px 0; overflow: hidden; }
+.team.current { box-shadow: 0 0 0 2px var(--accent); }
+.team .stripe { align-self: stretch; }
+.team input { background: transparent; border: 0; color: var(--text-on-dark); font: 700 15px var(--body); width: 100%; padding: 2px 0; }
+.chips { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.chip { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: #34505f; color: #dbe6ea; }
+.chip.warn { background: #6b2b26; }
+.chip.ok { background: #1f5a3d; }
+.cash { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 16px; text-align: right; }
+.cash.neg { color: #ff8a7d; }
+.adj { display: flex; gap: 4px; justify-content: flex-end; margin-top: 4px; }
+.adj button { background: #34505f; color: #fff; border: 0; border-radius: 6px; font-size: 11px; padding: 2px 6px; }
+
+/* Tarjetas emergentes */
+.overlay { position: fixed; inset: 0; background: rgba(5, 12, 18, .78); display: none; place-items: center; padding: 20px; z-index: 10; }
+.overlay.show { display: grid; }
+.card { background: #fff; color: var(--ink); border-radius: 18px; width: min(640px, 100%); max-height: calc(100vh - 40px); overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.card header { padding: 18px 24px; color: #fff; border-radius: 18px 18px 0 0; }
+.card header .k { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; opacity: .9; }
+.card header h3 { font-family: var(--display); font-size: clamp(22px, 2.6vw, 32px); margin: 4px 0 0; line-height: 1.1; text-wrap: balance; }
+.card .body { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; font-size: 18px; line-height: 1.4; }
+.card .body p { margin: 0; }
+.tip { background: #fff4dc; border-radius: 10px; padding: 10px 14px; font-size: 16px; font-weight: 600; color: #6a4a08; }
+.card .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.card .btn.ghost { color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { text-align: left; border: 2px solid var(--line); background: #fff; color: var(--ink); border-radius: 12px; padding: 13px 15px; font-size: 18px; font-weight: 600; }
+.opt:hover:not(:disabled) { border-color: var(--ink); }
+.opt.right { border-color: var(--good); background: #e2f4ea; }
+.opt.wrong { border-color: var(--bad); background: #fbe5e2; }
+.timer-bar { height: 8px; border-radius: 4px; background: #e3e9ec; overflow: hidden; }
+.timer-bar div { height: 100%; background: var(--accent); width: 100%; transition: width 1s linear; }
+.tlabel { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; }
+.field input, .field select { font: 500 17px var(--body); padding: 8px 10px; border: 2px solid var(--line); border-radius: 8px; color: var(--ink); background: #fff; }
+.result { font-weight: 700; padding: 10px 14px; border-radius: 10px; }
+.result.good { background: #e2f4ea; color: #1b6b42; }
+.result.bad { background: #fbe5e2; color: #9b2c22; }
+.rank { display: flex; flex-direction: column; gap: 8px; }
+.rank div { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: #eef3f5; font-weight: 700; color: var(--ink); }
+.rank div:first-child { background: #fbe7bf; }
+.rank .pos { font-family: var(--display); font-size: 22px; }
+.rank .num { font-variant-numeric: tabular-nums; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--accent); color: #1d1607; font-weight: 700; padding: 12px 20px; border-radius: 10px; display: none; z-index: 20; }
+.toast.show { display: block; }
+
+/* Celular del equipo */
+.phone { min-height: 100%; max-width: 480px; margin: 0 auto; padding: 18px 16px 28px; display: flex; flex-direction: column; gap: 16px; }
+.phead { border-radius: 16px; padding: 16px 18px; color: #fff; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.phead .nm { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.1; }
+.phead .cs { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+.pbody { background: var(--panel); border-radius: 16px; padding: 20px 18px; display: flex; flex-direction: column; gap: 14px; text-align: center; }
+.pbody h3 { font-family: var(--display); margin: 0; font-size: 24px; line-height: 1.15; text-wrap: balance; }
+.pbody p { margin: 0; color: var(--muted-on-dark); font-size: 16px; line-height: 1.4; }
+.pbody .btn { width: 100%; font-size: 19px; padding: 16px; }
+.pbody .opt { width: 100%; }
+.pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pick button { border: 0; border-radius: 14px; padding: 18px 12px; color: #fff; font: 800 17px var(--display); text-align: left; min-height: 84px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; }
+.pick small { font: 600 12px var(--body); opacity: .9; }
+.plink { background: none; border: 0; color: var(--muted-on-dark); text-decoration: underline; font-size: 14px; }
+.ptimer { font-family: var(--display); font-size: 30px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.prule { border-radius: 16px; padding: 20px; color: #fff; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.prule .big { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1.1; }
+.prule p { color: #fff; opacity: .95; }
+
+/* Portada y unión por código */
+.landing { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; text-align: center; }
+.landing .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; width: min(560px, 100%); }
+.choice { border: 0; border-radius: 18px; padding: 24px 20px; text-align: left; color: #fff; display: flex; flex-direction: column; gap: 6px; }
+.choice b { font: 800 24px var(--display); }
+.choice span { font-size: 15px; opacity: .9; }
+.code { font-family: var(--display); font-weight: 800; font-size: 76px; letter-spacing: .12em; color: var(--accent); line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }
+.qr { background: #fff; border-radius: 12px; padding: 10px; align-self: center; }
+.qr { width: fit-content; margin: 8px auto 0; }
+.qr img, .qr canvas { width: 220px; height: 220px; }
+.url { font-size: 13px; color: var(--muted-on-dark); word-break: break-all; text-align: center; }
+.jform { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.jform label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 15px; color: var(--text-on-dark); }
+.jform input { font: 700 22px var(--body); padding: 14px; border-radius: 12px; border: 2px solid #3a5466; background: #0f1b24; color: var(--text-on-dark); }
+.jform input#jCode { letter-spacing: .2em; text-transform: uppercase; font-family: var(--display); font-size: 28px; }
+.err { color: #ff8a7d; font-weight: 700; font-size: 15px; min-height: 1.2em; }
+</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+
+<section class="landing" id="landing">
+  <h1 class="logo">Negociópolis</h1>
+  <div class="choices">
+    <button class="choice" id="goHost" style="background:#2a9d8f"><b>Proyectar el juego</b><span>Para la pantalla del salón</span></button>
+    <button class="choice" id="goJoin" style="background:#e0742f"><b>Unirme con código</b><span>Para el celular de tu equipo</span></button>
+  </div>
+</section>
+<section class="intro hidden" id="intro">
+  <div class="stage">
+    <h1 class="logo">Negociópolis</h1>
+    <div class="rule" id="rule"></div>
+    <div class="dots" id="dots"></div>
+    <div class="nav">
+      <button class="btn ghost" id="prevRule">Anterior</button>
+      <button class="btn big" id="nextRule">Siguiente</button>
+    </div>
+  </div>
+  <aside class="join">
+    <h2 id="joinTitle">Únanse desde el celular</h2>
+    <div id="joinCode"></div>
+    <p id="joinHint"></p>
+    <div id="joinList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div>
+      <p style="margin-bottom:8px">Duración</p>
+      <div class="row" id="durRow">
+        <button class="btn small ghost" data-min="10">10 min</button>
+        <button class="btn small ghost" data-min="12">12 min</button>
+        <button class="btn small ghost" data-min="15">15 min</button>
+      </div>
+    </div>
+  </aside>
+</section>
+
+<div class="app hidden" id="game">
+  <div class="board" id="board"></div>
+  <aside class="side">
+    <div class="box">
+      <div class="row" style="justify-content: space-between;">
+        <div class="clock" id="clock">12:00</div>
+        <div class="row">
+          <button class="btn small" id="clockBtn">Pausar</button>
+          <button class="btn small ghost" id="endBtn">Terminar</button>
+        </div>
+      </div>
+    </div>
+    <div class="box">
+      <h2>Empresas</h2>
+      <div class="teams" id="teams"></div>
+    </div>
+    <div class="row">
+      <button class="btn small ghost" id="rulesBtn">Ver reglas</button>
+      <button class="btn small ghost" id="resetBtn">Nueva partida</button>
+    </div>
+  </aside>
+</div>
+
+<div class="phone hidden" id="phone"></div>
+
+<div class="overlay" id="overlay"><div class="card" id="card"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TEAM_DEFS = [
+  { name: "NovaTech", color: "#e0742f" },
+  { name: "Vida Plena", color: "#3b8fd9" },
+  { name: "Café Cholula", color: "#8a5bd6" },
+  { name: "Textiles Atlixco", color: "#2a9d8f" },
+  { name: "AgroPuebla", color: "#c94f7c" },
+  { name: "Moto Express", color: "#6c7a1f" }
+];
+
+const TEAM_COLORS = ["#e0742f", "#3b8fd9", "#8a5bd6", "#2a9d8f", "#c94f7c", "#6c7a1f", "#b5651d", "#4a6fa5"];
+const MAX_TEAMS = 8;
+
+const RULES = [
+  { big: "Formen su empresa", p: "Equipos de 5. Cada quien con un rol: director, finanzas, negociador, analista y vocero.", c: "#e0742f" },
+  { big: "$1,000,000", p: "Es su capital inicial. Tiren los dados y avancen por el tablero.", c: "#2a9d8f" },
+  { big: "Compren negocios", p: "Para comprar, digan 2 criterios de decisión.", c: "#3b8fd9" },
+  { big: "Paguen o negocien", p: "¿Caen en un negocio ajeno? Pagan renta o negocian. Antes, digan su ideal y su límite.", c: "#8a5bd6" },
+  { big: "Decidan rápido", p: "Tarjetas de decisión: 25 segundos. Acierto +$100k, error −$50k.", c: "#c94f7c" },
+  { big: "Gana la más valiosa", p: "Al acabar el tiempo cuenta el efectivo más los negocios.", c: "#c98a12" }
+];
+
+const GROUPS = {
+  g1: { label: "Comercio local", color: "var(--g1)" },
+  g2: { label: "Servicios", color: "var(--g2)" },
+  g3: { label: "Tecnología", color: "var(--g3)" },
+  g4: { label: "Industria", color: "var(--g4)" }
+};
+
+const SQUARES = [
+  { type: "start", name: "Salida", desc: "+$100k al pasar" },
+  { type: "prop", name: "Cafetería El Portal", group: "g1", price: 120000 },
+  { type: "decision", name: "Decisión" },
+  { type: "prop", name: "Papelería del Centro", group: "g1", price: 120000 },
+  { type: "event", name: "Evento sorpresa" },
+  { type: "jail", name: "Decisión impulsiva", desc: "Pierdes 1 turno" },
+  { type: "prop", name: "Lavandería Express", group: "g2", price: 160000 },
+  { type: "maan", name: "Tu MAAN", desc: "Evita 1 renta" },
+  { type: "prop", name: "Taller Mecánico", group: "g2", price: 160000 },
+  { type: "decision", name: "Decisión" },
+  { type: "table", name: "Mesa de negociación", desc: "Compra a otra empresa" },
+  { type: "prop", name: "App de Delivery", group: "g3", price: 200000 },
+  { type: "event", name: "Evento sorpresa" },
+  { type: "prop", name: "Agencia Web", group: "g3", price: 200000 },
+  { type: "decision", name: "Decisión" },
+  { type: "rush", name: "Reto relámpago", desc: "7 fases en 20 s" },
+  { type: "prop", name: "Fábrica Textil", group: "g4", price: 250000 },
+  { type: "decision", name: "Decisión" },
+  { type: "prop", name: "Planta de Empaque", group: "g4", price: 250000 },
+  { type: "event", name: "Evento sorpresa" }
+];
+
+const QUESTIONS = [
+  { q: "Las ventas bajaron 40% este mes. Eso es…", o: ["Un síntoma", "La causa", "El problema real"], a: 0, e: "Es una señal. Todavía falta investigar por qué pasa." },
+  { q: "A es más barato pero tarda 30 días. B cuesta 10% más y tarda 7. Necesitas el material esta semana.", o: ["Proveedor A", "Proveedor B", "Esperar"], a: 1, e: "Aquí el tiempo de entrega pesa más que el precio." },
+  { q: "“Quiero vender en $20,000” es una…", o: ["Interés", "Posición", "MAAN"], a: 1, e: "La posición es lo que dice que quiere." },
+  { q: "“Necesita dinero rápido” es su…", o: ["Posición", "Criterio", "Interés"], a: 2, e: "El interés es la necesidad de fondo." },
+  { q: "¿El punto donde conviene más retirarse?", o: ["Objetivo ideal", "Límite", "Objetivo aceptable"], a: 1, e: "El límite se fija antes de negociar." },
+  { q: "¿Qué significa MAAN?", o: ["Mejor alternativa a un acuerdo negociado", "Margen aceptable de acuerdo neto", "Meta anual de negociación"], a: 0, e: "Es lo que harías si no hay acuerdo." },
+  { q: "¿Qué fase sigue de “Generar alternativas”?", o: ["Seleccionar una opción", "Evaluar alternativas", "Definir criterios"], a: 1, e: "Primero se generan opciones y luego se comparan." },
+  { q: "¿Cuál es la primera fase?", o: ["Identificar el problema", "Recopilar información", "Generar alternativas"], a: 0, e: "Sin el problema claro, se resuelve lo equivocado." },
+  { q: "“Aceptemos el descuento, se ve buena oportunidad.” Es una decisión…", o: ["Estructurada", "Impulsiva", "Razonada"], a: 1, e: "No revisó condiciones ni alternativas." },
+  { q: "¿Qué compara opciones con criterios y puntajes?", o: ["Matriz de decisión", "Organigrama", "Diagrama de Gantt"], a: 0, e: "Cada criterio tiene un peso y cada opción una calificación." },
+  { q: "Te ofrecen $70,000. Tu MAAN te deja $85,000.", o: ["Acepto ya", "Rechazo o contraoferto", "Acepto y luego renegocio"], a: 1, e: "Si la oferta es peor que tu MAAN, no conviene." },
+  { q: "Una decisión efectiva es…", o: ["Rápida y barata", "Informada, razonada, viable y responsable", "Perfecta y sin riesgos"], a: 1, e: "Casi nunca hay opciones sin riesgo." },
+  { q: "“¿La decisión resolvió el problema?” es de la fase…", o: ["Identificar el problema", "Implementar y evaluar", "Generar alternativas"], a: 1, e: "Decidir no es el final: hay que revisar." },
+  { q: "NovaTech tiene $900k. A cobra $800k pero incumple. B cobra $890k con excelente calidad.", o: ["Proveedor A", "Proveedor B", "Pedir más presupuesto"], a: 1, e: "Lo más barato dejó de ser lo mejor al ver el riesgo." },
+  { q: "Precio, calidad, entrega y garantía son…", o: ["Alternativas", "Síntomas", "Criterios"], a: 2, e: "Son las reglas para comparar opciones." },
+  { q: "¿Cuál es un error común?", o: ["Comparar alternativas", "Decidir con mucha presión", "Revisar la MAAN"], a: 1, e: "La presión lleva a decidir sin analizar." },
+  { q: "Aparece información nueva a mitad de la negociación.", o: ["La ignoro y firmo", "Reevalúo la decisión", "Cancelo todo"], a: 1, e: "Puede cambiar qué opción conviene." },
+  { q: "¿El rango donde ambos pueden decir que sí?", o: ["ZOPA", "MAAN", "Límite"], a: 0, e: "Es la zona de posible acuerdo." },
+  { q: "“Lo que queremos conseguir” es el…", o: ["Objetivo ideal", "Objetivo mínimo", "Límite"], a: 0, e: "El ideal sirve para la primera oferta." },
+  { q: "Revisar precio, condiciones y tiempo antes de aceptar es la fase de…", o: ["Recopilar información", "Seleccionar una opción", "Implementar"], a: 0, e: "Sin datos se decide a ciegas." }
+];
+
+const EVENTS = [
+  { t: "Ciberataque", d: "Con negocio de Tecnología: +$50k. Sin él: −$100k.", fx: (t) => ownsGroup(t, "g3") ? 50000 : -100000 },
+  { t: "Cliente grande firma", d: "Prepararon bien la propuesta.", fx: () => 200000 },
+  { t: "Tu proveedor incumple", d: "Lo eligieron solo por precio.", fx: () => -100000 },
+  { t: "Deuda oculta", d: "Finanzas no la compartió a tiempo.", fx: () => -150000 },
+  { t: "El inversionista pide crecer", d: "Con 2 negocios o más: +$100k. Si no: −$100k.", fx: (t) => countProps(t) >= 2 ? 100000 : -100000 },
+  { t: "Renuncias del personal", d: "Toca invertir en capacitación.", fx: () => -80000 },
+  { t: "Descuento del 20%", d: "Su próxima compra cuesta 20% menos.", fx: (t) => { t.discount = true; return 0; } },
+  { t: "Sube el mercado", d: "+$50k por cada negocio que tengan.", fx: (t) => countProps(t) * 50000 },
+  { t: "La competencia baja precios", d: "Todas las empresas pierden $50k.", fx: (t) => { state.teams.forEach(x => { if (x !== t) x.cash -= 50000; }); return -50000; } },
+  { t: "Análisis costo-beneficio", d: "Eliminaron un gasto innecesario.", fx: () => 120000 }
+];
+
+const PHASES = ["Identificar el problema", "Recopilar y analizar información", "Definir objetivos y criterios", "Generar alternativas", "Evaluar alternativas", "Seleccionar una opción", "Implementar y evaluar resultados"];
+
+const TIMED = { buy: 30, neg: 30, decision: 25, table: 45, rush: 20 };
+const INFO = ["start", "own", "event", "maan", "jail", "tablenone"];
+
+const GRID = [];
+for (let c = 0; c < 6; c++) GRID.push([0, c]);
+for (let r = 1; r < 5; r++) GRID.push([r, 5]);
+for (let c = 5; c >= 0; c--) GRID.push([5, c]);
+for (let r = 4; r >= 1; r--) GRID.push([r, 0]);
+
+const STORE_KEY = "negociopolis-v3";
+let state;
+let mode = "host";
+let rolling = false;
+let clockTimer = null;
+let cardTimer = null;
+let shownStep = -1;
+let ruleIdx = 0;
+let teamCounts = [];
+const net = { kind: "none", peer: null, conns: new Set(), code: "", tries: 0 };
+const phone = { team: null, n: 0, snap: null, sentStep: -1, firstSeen: {}, ruleIdx: 0, tick: null, code: "", name: "", conn: null, status: "form", err: "", retry: null };
+
+function fresh(minutes, keep) {
+  const base = keep && keep.length ? keep.map(t => ({ name: t.name, color: t.color })) : TEAM_DEFS;
+  return {
+    ph: "intro",
+    joined: !!(keep && keep.length && keep.joined),
+    teams: base.map(d => ({ ...d, cash: 1000000, pos: 0, skip: false, maan: false, discount: false })),
+    owners: {},
+    turn: 0,
+    dice: [1, 1],
+    qDeck: shuffle([...QUESTIONS.keys()]),
+    eDeck: shuffle([...EVENTS.keys()]),
+    seconds: (minutes || 12) * 60,
+    minutes: minutes || 12,
+    pending: null,
+    step: 0,
+    log: "",
+    rank: null
+  };
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function money(n) { return (n < 0 ? "−$" : "$") + Math.abs(n).toLocaleString("es-MX"); }
+function esc(s) { return String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch])); }
+function initials(name) { return name.split(/\s+/).filter(Boolean).map(w => w[0]).join("").slice(0, 3).toUpperCase(); }
+function ownsGroup(t, g) { const i = state.teams.indexOf(t); return SQUARES.some((s, k) => s.group === g && state.owners[k] === i); }
+function countProps(t) { const i = state.teams.indexOf(t); return Object.values(state.owners).filter(o => o === i).length; }
+function propValue(t) { const i = state.teams.indexOf(t); return Object.entries(state.owners).filter(([, o]) => o === i).reduce((s, [k]) => s + SQUARES[k].price, 0); }
+function rentFor(k) {
+  const s = SQUARES[k];
+  const owner = state.owners[k];
+  const both = SQUARES.every((x, j) => x.group !== s.group || state.owners[j] === owner);
+  return s.price * 0.25 * (both ? 2 : 1);
+}
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+  return null;
+}
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => el.classList.remove("show"), 2600);
+}
+
+function snapshot() {
+  return {
+    ph: state.ph,
+    t: state.teams.map(t => [t.name.slice(0, 28), t.color, t.cash, t.pos, t.skip ? 1 : 0, t.maan ? 1 : 0, t.discount ? 1 : 0]),
+    o: state.owners,
+    tu: state.turn,
+    d: state.dice,
+    lg: state.log.slice(0, 160),
+    p: state.pending,
+    st: state.step,
+    sec: state.seconds,
+    rk: state.rank
+  };
+}
+function publish() {
+  save();
+  if (net.kind !== "host") return;
+  const msg = { type: "state", s: snapshot() };
+  net.conns.forEach(c => { if (c.open) { try { c.send(msg); } catch (e) {} } });
+}
+
+/* Intro y reglas */
+function ruleHtml(r, i) {
+  return `<div class="n">REGLA ${i + 1} DE ${RULES.length}</div><div class="big">${r.big}</div><p>${r.p}</p>`;
+}
+function renderIntro() {
+  const r = RULES[ruleIdx];
+  const el = document.getElementById("rule");
+  el.style.background = r.c;
+  el.innerHTML = ruleHtml(r, ruleIdx);
+  document.getElementById("dots").innerHTML = RULES.map((_, i) => `<span class="${i === ruleIdx ? "on" : ""}"></span>`).join("");
+  document.getElementById("prevRule").disabled = ruleIdx === 0;
+  const next = document.getElementById("nextRule");
+  const last = ruleIdx === RULES.length - 1;
+  next.textContent = last ? (state.ph === "intro" ? "Comenzar" : "Volver al juego") : "Siguiente";
+  next.classList.toggle("good", last);
+  renderJoinPanel();
+  document.querySelectorAll("#durRow [data-min]").forEach(b => b.classList.toggle("on", +b.dataset.min === state.minutes));
+}
+function showView() {
+  const host = mode === "host";
+  document.getElementById("landing").classList.toggle("hidden", mode !== "landing");
+  document.getElementById("intro").classList.toggle("hidden", !host || !(state.ph === "intro" || showingRules));
+  document.getElementById("game").classList.toggle("hidden", !host || state.ph === "intro" || showingRules);
+  document.getElementById("phone").classList.toggle("hidden", mode !== "team");
+}
+let showingRules = false;
+
+/* Tablero */
+function renderBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  SQUARES.forEach((s, k) => {
+    const [r, c] = GRID[k];
+    const el = document.createElement("div");
+    el.className = "cell";
+    if (["start", "jail", "table", "rush"].includes(s.type)) el.classList.add("corner");
+    if (s.type === "decision") el.classList.add("decision");
+    if (s.type === "event") el.classList.add("event");
+    if (s.type === "maan") el.classList.add("maan");
+    if (state.teams[state.turn].pos === k) el.classList.add("active");
+    el.style.gridRow = r + 1;
+    el.style.gridColumn = c + 1;
+    let html = "";
+    if (s.type === "prop") {
+      html += `<div class="band" style="background:${GROUPS[s.group].color}"></div><div class="kind">${GROUPS[s.group].label}</div><div class="name">${s.name}</div><div class="price">${money(s.price)}</div>`;
+      if (state.owners[k] !== undefined) {
+        const o = state.teams[state.owners[k]];
+        html += `<div class="owner" style="background:${o.color}">${esc(initials(o.name))}</div>`;
+      }
+    } else {
+      html += `<div class="name">${s.name}</div>`;
+      if (s.desc) html += `<div class="price">${s.desc}</div>`;
+    }
+    const here = state.teams.map((t, i) => ({ t, i })).filter(x => x.t.pos === k);
+    if (here.length) html += `<div class="tokens">${here.map(x => `<div class="token" style="background:${x.t.color}">${x.i + 1}</div>`).join("")}</div>`;
+    el.innerHTML = html;
+    board.appendChild(el);
+  });
+  const t = state.teams[state.turn];
+  const center = document.createElement("div");
+  center.className = "center";
+  center.innerHTML = `
+    <div class="logo">Negociópolis</div>
+    <div class="turn-now">Turno de <span class="pill" style="background:${t.color}">${esc(t.name)}</span></div>
+    <div class="dice"><div class="die" id="d1">${state.dice[0]}</div><div class="die" id="d2">${state.dice[1]}</div></div>
+    <button class="btn big" id="rollBtn" ${rolling || state.pending || state.ph !== "play" ? "disabled" : ""}>Tirar dados</button>
+    <div class="log" id="log"></div>`;
+  board.appendChild(center);
+  center.querySelector("#log").textContent = state.log;
+  document.getElementById("rollBtn").addEventListener("click", () => doAction("roll", null, "host"));
+}
+
+function renderTeams() {
+  const box = document.getElementById("teams");
+  box.innerHTML = "";
+  state.teams.forEach((t, i) => {
+    const el = document.createElement("div");
+    el.className = "team" + (i === state.turn ? " current" : "");
+    const chips = [`<span class="chip">${countProps(t)} negocios</span>`];
+    if (net.kind === "host" && teamCounts[i]) chips.push(`<span class="chip ok">en línea</span>`);
+    if (t.maan) chips.push(`<span class="chip ok">MAAN</span>`);
+    if (t.discount) chips.push(`<span class="chip ok">−20%</span>`);
+    if (t.skip) chips.push(`<span class="chip warn">Pierde turno</span>`);
+    el.innerHTML = `
+      <div class="stripe" style="background:${t.color}"></div>
+      <div><input id="team-name-${i}" value="${esc(t.name)}" maxlength="28" aria-label="Nombre de la empresa ${i + 1}"><div class="chips">${chips.join("")}</div></div>
+      <div><div class="cash ${t.cash < 0 ? "neg" : ""}">${money(t.cash)}</div>
+        <div class="adj"><button data-i="${i}" data-v="-50000" aria-label="Restar 50 mil">−50k</button><button data-i="${i}" data-v="50000" aria-label="Sumar 50 mil">+50k</button></div></div>`;
+    box.appendChild(el);
+    el.querySelector("input").addEventListener("change", e => {
+      t.name = e.target.value.trim().slice(0, 28) || TEAM_DEFS[i].name;
+      publish(); renderHost();
+    });
+  });
+  box.querySelectorAll(".adj button").forEach(b => b.addEventListener("click", () => {
+    state.teams[+b.dataset.i].cash += +b.dataset.v;
+    publish(); renderTeams();
+  }));
+}
+
+function renderClock() {
+  const sec = Math.max(0, state.seconds);
+  const el = document.getElementById("clock");
+  el.textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  el.classList.toggle("low", sec <= 60);
+  document.getElementById("clockBtn").textContent = clockTimer ? "Pausar" : "Reanudar";
+}
+
+function renderHost() {
+  showView();
+  if (state.ph === "intro" || showingRules) { renderIntro(); return; }
+  renderBoard(); renderTeams(); renderClock(); renderPending();
+}
+
+/* Turnos y acciones */
+function setPending(p) {
+  state.pending = p;
+  state.step++;
+  publish();
+  renderHost();
+}
+
+function finishTurn() {
+  clearInterval(cardTimer);
+  state.pending = null;
+  let next = (state.turn + 1) % state.teams.length;
+  let guard = 0;
+  while (state.teams[next].skip && guard < state.teams.length) {
+    state.teams[next].skip = false;
+    toast(`${state.teams[next].name} pierde este turno`);
+    next = (next + 1) % state.teams.length;
+    guard++;
+  }
+  state.turn = next;
+  state.step++;
+  publish();
+  renderHost();
+}
+
+function roll() {
+  rolling = true;
+  const t = state.teams[state.turn];
+  renderBoard();
+  const d1 = document.getElementById("d1"), d2 = document.getElementById("d2");
+  d1.classList.add("rolling"); d2.classList.add("rolling");
+  let n = 0;
+  const spin = setInterval(() => {
+    d1.textContent = 1 + Math.floor(Math.random() * 6);
+    d2.textContent = 1 + Math.floor(Math.random() * 6);
+    if (++n > 8) {
+      clearInterval(spin);
+      state.dice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+      move(t, state.dice[0] + state.dice[1]);
+    }
+  }, 70);
+}
+
+function move(t, steps) {
+  let left = steps;
+  const step = setInterval(() => {
+    t.pos = (t.pos + 1) % SQUARES.length;
+    if (t.pos === 0 && left > 1) { t.cash += 100000; toast(`${t.name} pasa por Salida: +$100,000`); }
+    left--;
+    renderBoard(); renderTeams();
+    if (left === 0) {
+      clearInterval(step);
+      rolling = false;
+      state.log = `${t.name} sacó ${steps} y cayó en ${SQUARES[t.pos].name}.`;
+      land(t);
+    } else {
+      publish();
+    }
+  }, 160);
+}
+
+function land(t) {
+  const tm = state.teams.indexOf(t);
+  const sq = t.pos;
+  const s = SQUARES[sq];
+  if (s.type === "start") { t.cash += 100000; return setPending({ k: "start", tm, sq }); }
+  if (s.type === "prop") {
+    const owner = state.owners[sq];
+    if (owner === undefined) return setPending({ k: "buy", tm, sq, cost: t.discount ? s.price * 0.8 : s.price });
+    if (owner === tm) return setPending({ k: "own", tm, sq });
+    return setPending({ k: "rent", tm, sq, ow: owner, rent: rentFor(sq) });
+  }
+  if (s.type === "decision") {
+    if (!state.qDeck.length) state.qDeck = shuffle([...QUESTIONS.keys()]);
+    return setPending({ k: "decision", tm, sq, qi: state.qDeck.pop(), ans: null });
+  }
+  if (s.type === "event") {
+    if (!state.eDeck.length) state.eDeck = shuffle([...EVENTS.keys()]);
+    const ei = state.eDeck.pop();
+    const dl = EVENTS[ei].fx(t);
+    t.cash += dl;
+    state.log = `Evento para ${t.name}: ${EVENTS[ei].t}.`;
+    return setPending({ k: "event", tm, sq, ei, dl });
+  }
+  if (s.type === "maan") { t.maan = true; return setPending({ k: "maan", tm, sq }); }
+  if (s.type === "jail") { t.skip = true; return setPending({ k: "jail", tm, sq }); }
+  if (s.type === "table") {
+    const others = Object.values(state.owners).some(o => o !== tm);
+    if (!others) { t.cash += 50000; return setPending({ k: "tablenone", tm, sq }); }
+    return setPending({ k: "table", tm, sq });
+  }
+  if (s.type === "rush") return setPending({ k: "rush", tm, sq, rv: 0 });
+}
+
+function doAction(type, arg, from) {
+  if (state.ph !== "play") return;
+  const isTeam = from !== "host";
+  const p = state.pending;
+  if (type === "roll") {
+    if (p || rolling) return;
+    if (isTeam && from !== state.turn) return;
+    roll();
+    return;
+  }
+  if (!p || rolling) return;
+  if (isTeam && from !== p.tm) return;
+  const t = state.teams[p.tm];
+  const s = SQUARES[p.sq];
+  switch (type) {
+    case "buy":
+      if (p.k !== "buy" || t.cash < p.cost) return;
+      t.cash -= p.cost; t.discount = false; state.owners[p.sq] = p.tm;
+      state.log = `${t.name} compró ${s.name}.`;
+      return finishTurn();
+    case "pass":
+      if (p.k !== "buy") return;
+      state.log = `${t.name} no compró ${s.name}.`;
+      return finishTurn();
+    case "pay":
+      if (p.k !== "rent" && p.k !== "neg") return;
+      t.cash -= p.rent; state.teams[p.ow].cash += p.rent;
+      state.log = `${t.name} pagó ${money(p.rent)} a ${state.teams[p.ow].name}.`;
+      return finishTurn();
+    case "neg":
+      if (p.k !== "rent") return;
+      return setPending({ ...p, k: "neg" });
+    case "maan":
+      if (p.k !== "rent" || !t.maan) return;
+      t.maan = false;
+      state.log = `${t.name} usó su MAAN y no pagó renta.`;
+      return finishTurn();
+    case "answer": {
+      if (p.k !== "decision" || p.ans !== null) return;
+      const i = Number(arg);
+      if (![-1, 0, 1, 2].includes(i)) return;
+      const ok = i === QUESTIONS[p.qi].a;
+      t.cash += ok ? 100000 : -50000;
+      state.log = `${t.name} ${ok ? "acertó" : "falló"} la tarjeta de decisión.`;
+      clearInterval(cardTimer);
+      return setPending({ ...p, ans: i });
+    }
+    case "ok":
+      if (INFO.includes(p.k) || (p.k === "decision" && p.ans !== null)) return finishTurn();
+      return;
+  }
+  if (isTeam) return;
+  switch (type) {
+    case "deal": {
+      if (p.k !== "neg") return;
+      const v = Math.max(0, Math.round(Number(arg) || 0));
+      t.cash -= v; state.teams[p.ow].cash += v;
+      state.log = `Acuerdo: ${t.name} pagó ${money(v)} en lugar de ${money(p.rent)}.`;
+      return finishTurn();
+    }
+    case "tdeal": {
+      if (p.k !== "table") return;
+      const k = arg.sq, v = Math.max(0, Math.round(Number(arg.amt) || 0));
+      const sellerIdx = state.owners[k];
+      if (sellerIdx === undefined || sellerIdx === p.tm) return;
+      t.cash -= v; state.teams[sellerIdx].cash += v; state.owners[k] = p.tm;
+      state.log = `${t.name} compró ${SQUARES[k].name} a ${state.teams[sellerIdx].name}.`;
+      return finishTurn();
+    }
+    case "tno":
+      if (p.k !== "table") return;
+      state.log = "Sin acuerdo en la mesa de negociación.";
+      return finishTurn();
+    case "reveal":
+      if (p.k !== "rush" || p.rv) return;
+      clearInterval(cardTimer);
+      return setPending({ ...p, rv: 1 });
+    case "rushyes":
+      if (p.k !== "rush") return;
+      t.cash += 150000;
+      state.log = `${t.name} ganó el reto relámpago.`;
+      return finishTurn();
+    case "rushno":
+      if (p.k !== "rush") return;
+      state.log = `${t.name} no completó el reto.`;
+      return finishTurn();
+  }
+}
+
+/* Tarjeta en la pantalla del salón */
+const timerHtml = `<div class="timer-bar"><div id="tbar"></div></div><div class="tlabel" id="tlab"></div>`;
+function openCard(color, kicker, title, bodyHtml) {
+  const card = document.getElementById("card");
+  card.innerHTML = `<header style="background:${color}"><div class="k">${kicker}</div><h3>${title}</h3></header><div class="body">${bodyHtml}</div>`;
+  document.getElementById("overlay").classList.add("show");
+  return card;
+}
+function closeCard() {
+  clearInterval(cardTimer);
+  document.getElementById("overlay").classList.remove("show");
+}
+function startCountdown(sec, onEnd) {
+  clearInterval(cardTimer);
+  const bar = document.getElementById("tbar");
+  const lab = document.getElementById("tlab");
+  let left = sec;
+  const paint = () => {
+    if (bar) bar.style.width = (left / sec * 100) + "%";
+    if (lab) lab.textContent = left > 0 ? `${left} s` : "¡Tiempo!";
+  };
+  paint();
+  cardTimer = setInterval(() => {
+    left--;
+    paint();
+    if (left <= 0) { clearInterval(cardTimer); if (onEnd) onEnd(); }
+  }, 1000);
+}
+
+function renderPending() {
+  if (state.ph === "end") return;
+  const p = state.pending;
+  if (!p) { if (shownStep !== -2) { closeCard(); shownStep = -2; } return; }
+  if (shownStep === state.step) return;
+  shownStep = state.step;
+  const t = state.teams[p.tm];
+  const s = SQUARES[p.sq];
+  const name = esc(t.name);
+  const act = (type, arg) => () => doAction(type, arg, "host");
+  let c;
+  switch (p.k) {
+    case "start":
+      c = openCard(t.color, "Salida", "+$100,000", `<div class="tip">Vocero: digan algo que les ha salido bien.</div><div class="actions"><button class="btn" id="ok">Continuar</button></div>`);
+      break;
+    case "buy":
+      c = openCard(GROUPS[s.group].color, `${GROUPS[s.group].label} · ${name}`, s.name, `
+        <p>Precio <b>${money(p.cost)}</b> · Renta <b>${money(s.price * 0.25)}</b></p>
+        <div class="tip">Para comprar, digan 2 criterios.</div>
+        ${timerHtml}
+        <div class="actions"><button class="btn good" id="buy" ${t.cash < p.cost ? "disabled" : ""}>Comprar</button><button class="btn ghost" id="pass">No comprar</button></div>`);
+      c.querySelector("#buy").onclick = act("buy");
+      c.querySelector("#pass").onclick = act("pass");
+      break;
+    case "own":
+      c = openCard(GROUPS[s.group].color, name, s.name, `<p>Este negocio ya es suyo.</p><div class="actions"><button class="btn" id="ok">Continuar</button></div>`);
+      break;
+    case "rent": {
+      const o = state.teams[p.ow];
+      c = openCard(GROUPS[s.group].color, `Negocio de ${esc(o.name)}`, `${name} paga ${money(p.rent)}`, `
+        <div class="tip">¿Negocian? Antes digan su ideal y su límite.</div>
+        <div class="actions"><button class="btn bad" id="pay">Pagar</button><button class="btn" id="neg">Negociar</button>${t.maan ? `<button class="btn good" id="maan">Usar MAAN</button>` : ""}</div>`);
+      c.querySelector("#pay").onclick = act("pay");
+      c.querySelector("#neg").onclick = act("neg");
+      if (t.maan) c.querySelector("#maan").onclick = act("maan");
+      break;
+    }
+    case "neg": {
+      const o = state.teams[p.ow];
+      c = openCard("#142430", "Negociación · 30 s", `${name} vs ${esc(o.name)}`, `
+        <p>Renta original: <b>${money(p.rent)}</b></p>
+        ${timerHtml}
+        <label class="field" for="dealAmt">Monto acordado<input id="dealAmt" type="number" min="0" step="10000" value="${p.rent * 0.7}"></label>
+        <div class="actions"><button class="btn good" id="deal">Cerrar acuerdo</button><button class="btn bad" id="pay">Sin acuerdo</button></div>`);
+      c.querySelector("#deal").onclick = () => doAction("deal", c.querySelector("#dealAmt").value, "host");
+      c.querySelector("#pay").onclick = act("pay");
+      break;
+    }
+    case "decision": {
+      const q = QUESTIONS[p.qi];
+      const answered = p.ans !== null;
+      const ok = p.ans === q.a;
+      c = openCard("#3b6fb6", `Decisión · ${name}`, q.q, `
+        ${answered ? "" : timerHtml}
+        <div class="opts">${q.o.map((x, i) => `<button class="opt ${answered && i === q.a ? "right" : ""} ${answered && i === p.ans && !ok ? "wrong" : ""}" data-i="${i}" ${answered ? "disabled" : ""}>${String.fromCharCode(65 + i)}) ${x}</button>`).join("")}</div>
+        ${answered ? `<div class="result ${ok ? "good" : "bad"}">${ok ? "¡Correcto! +$100,000" : (p.ans === -1 ? "Se acabó el tiempo. −$50,000" : "Incorrecto. −$50,000")}</div><p>${q.e}</p><div class="actions"><button class="btn" id="ok">Continuar</button></div>` : ""}`);
+      if (!answered) c.querySelectorAll(".opt").forEach(b => b.onclick = act("answer", +b.dataset.i));
+      break;
+    }
+    case "event": {
+      const ev = EVENTS[p.ei];
+      c = openCard("#b8463c", `Evento sorpresa · ${name}`, ev.t, `
+        <p>${ev.d}</p>
+        ${p.dl ? `<div class="result ${p.dl > 0 ? "good" : "bad"}">${p.dl > 0 ? "+" : ""}${money(p.dl)}</div>` : ""}
+        <div class="actions"><button class="btn" id="ok">Continuar</button></div>`);
+      break;
+    }
+    case "maan":
+      c = openCard("#2f8a58", name, "Consiguieron una MAAN", `<p>Úsenla una vez para no pagar renta.</p><div class="actions"><button class="btn" id="ok">Guardar</button></div>`);
+      break;
+    case "jail":
+      c = openCard("#6b2b26", name, "Decisión impulsiva", `<p>Aceptaron sin analizar. Pierden su próximo turno.</p><div class="actions"><button class="btn" id="ok">Continuar</button></div>`);
+      break;
+    case "tablenone":
+      c = openCard("#142430", "Mesa de negociación", "+$50,000", `<p>Nadie tiene negocios aún. Ganan por preparar su plan.</p><div class="actions"><button class="btn" id="ok">Continuar</button></div>`);
+      break;
+    case "table": {
+      const forSale = Object.entries(state.owners).filter(([, o]) => o !== p.tm);
+      c = openCard("#142430", "Mesa de negociación · 45 s", `${name} quiere comprar`, `
+        <div class="tip">Pregunten: “¿para qué lo necesitas?”</div>
+        ${timerHtml}
+        <label class="field" for="tblProp">Negocio<select id="tblProp">${forSale.map(([k, o]) => `<option value="${k}">${SQUARES[k].name} (${esc(state.teams[o].name)})</option>`).join("")}</select></label>
+        <label class="field" for="tblAmt">Precio acordado<input id="tblAmt" type="number" min="0" step="10000" value="${SQUARES[forSale[0][0]].price}"></label>
+        <div class="actions"><button class="btn good" id="deal">Cerrar trato</button><button class="btn ghost" id="nodeal">Sin acuerdo</button></div>`);
+      c.querySelector("#tblProp").onchange = e => { c.querySelector("#tblAmt").value = SQUARES[e.target.value].price; };
+      c.querySelector("#deal").onclick = () => doAction("tdeal", { sq: c.querySelector("#tblProp").value, amt: c.querySelector("#tblAmt").value }, "host");
+      c.querySelector("#nodeal").onclick = act("tno");
+      break;
+    }
+    case "rush":
+      c = openCard("#c98a12", `Reto relámpago · ${name}`, "Las 7 fases en orden", p.rv
+        ? `<ol style="margin:0;padding-left:22px">${PHASES.map(x => `<li>${x}</li>`).join("")}</ol><div class="actions"><button class="btn good" id="y">Bien: +$150,000</button><button class="btn bad" id="n">Fallaron</button></div>`
+        : `${timerHtml}<div class="actions"><button class="btn ghost" id="show">Mostrar respuesta</button></div>`);
+      if (p.rv) { c.querySelector("#y").onclick = act("rushyes"); c.querySelector("#n").onclick = act("rushno"); }
+      else c.querySelector("#show").onclick = act("reveal");
+      break;
+  }
+  const okBtn = c.querySelector("#ok");
+  if (okBtn) okBtn.onclick = act("ok");
+  if (TIMED[p.k] && !(p.k === "decision" && p.ans !== null) && !(p.k === "rush" && p.rv)) {
+    const onEnd = p.k === "decision" ? () => doAction("answer", -1, "host") : p.k === "rush" ? () => doAction("reveal", null, "host") : null;
+    startCountdown(TIMED[p.k], onEnd);
+  }
+}
+
+/* Reloj, inicio y fin */
+function startClock() {
+  if (clockTimer || state.seconds <= 0) return;
+  clockTimer = setInterval(() => {
+    state.seconds--;
+    renderClock();
+    if (state.seconds % 5 === 0) publish();
+    if (state.seconds <= 0) endGame();
+  }, 1000);
+  renderClock();
+}
+function stopClock() { clearInterval(clockTimer); clockTimer = null; renderClock(); publish(); }
+
+function startGame() {
+  state.ph = "play";
+  state.seconds = state.minutes * 60;
+  state.log = `Empieza ${state.teams[0].name}.`;
+  state.step++;
+  showingRules = false;
+  publish();
+  renderHost();
+  startClock();
+}
+
+function endGame() {
+  clearInterval(clockTimer); clockTimer = null;
+  clearInterval(cardTimer);
+  state.pending = null;
+  state.ph = "end";
+  state.rank = state.teams.map((t, i) => [i, t.cash + propValue(t)]).sort((a, b) => b[1] - a[1]);
+  state.step++;
+  publish();
+  showView(); renderBoard(); renderTeams(); renderClock();
+  const rows = state.rank;
+  const c = openCard("#142430", "Fin del juego", `Gana ${esc(state.teams[rows[0][0]].name)}`, `
+    ${rankHtml(rows, state.teams.map(t => [t.name, t.color]))}
+    <div class="tip">Cierre: ¿qué decisión tomaron sin información? ¿Les sirvió conocer su límite o su MAAN? ¿Qué fase se saltaron más?</div>
+    <div class="actions"><button class="btn ghost" id="ok">Ver tablero</button></div>`);
+  c.querySelector("#ok").onclick = () => { shownStep = state.step; closeCard(); };
+}
+function rankHtml(rows, teams) {
+  return `<div class="rank">${rows.map(([i, total], n) => `<div><span class="pos">${n + 1}</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${teams[i][1]};margin-right:8px"></span>${esc(teams[i][0])}</span><span class="num">${money(total)}</span></div>`).join("")}</div>`;
+}
+
+/* Panel de unión en la pantalla */
+function joinUrl() { return location.origin + location.pathname + "?c=" + net.code; }
+function renderJoinPanel() {
+  const codeBox = document.getElementById("joinCode");
+  const hint = document.getElementById("joinHint");
+  const title = document.getElementById("joinTitle");
+  if (net.kind === "host" && net.code) {
+    title.textContent = "Únanse con este código";
+    if (codeBox.dataset.code !== net.code) {
+      codeBox.dataset.code = net.code;
+      codeBox.innerHTML = `<div class="code">${net.code}</div><div class="qr" id="qrBox"></div><div class="url" id="urlBox"></div>`;
+      codeBox.querySelector("#urlBox").textContent = location.origin + location.pathname;
+      try { new QRCode(codeBox.querySelector("#qrBox"), { text: joinUrl(), width: 440, height: 440, colorDark: "#142430", colorLight: "#ffffff" }); }
+      catch (e) { codeBox.querySelector("#qrBox").remove(); }
+    }
+    hint.textContent = state.joined ? "Equipos conectados:" : "Escaneen el QR o abran el enlace, escriban el código y el nombre de su equipo.";
+  } else if (net.kind === "connecting") {
+    title.textContent = "Creando código…";
+    codeBox.innerHTML = ""; codeBox.dataset.code = "";
+    hint.textContent = "Un momento.";
+  } else {
+    title.textContent = "Una sola pantalla";
+    codeBox.innerHTML = ""; codeBox.dataset.code = "";
+    hint.textContent = "Sin conexión para celulares. El profesor controla todo desde aquí.";
+  }
+  const list = document.getElementById("joinList");
+  if (net.kind === "host" && !state.joined) { list.innerHTML = ""; return; }
+  list.innerHTML = state.teams.map((t, i) => {
+    const n = teamCounts[i] || 0;
+    return `<div class="jteam"><span><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span><span class="cnt ${n ? "live" : ""}">${net.kind === "host" ? (n ? `${n} celular${n > 1 ? "es" : ""}` : "desconectado") : ""}</span></div>`;
+  }).join("");
+}
+
+/* Red: pantalla del salón */
+function peerOpts() { return window.__PEER_OPTS || { debug: 0 }; }
+function peerId(code) { return "negociopolis-" + code.toLowerCase() + "-v3"; }
+function newCode() {
+  const abc = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let c = "";
+  for (let i = 0; i < 4; i++) c += abc[Math.floor(Math.random() * abc.length)];
+  return c;
+}
+function norm(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase(); }
+function cleanName(s) { return String(s || "").replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 24); }
+
+function startHost() {
+  mode = "host";
+  if (typeof window.Peer !== "function") { net.kind = "none"; renderHost(); return; }
+  net.kind = "connecting";
+  let saved = "";
+  try { saved = localStorage.getItem("negociopolis-code") || ""; } catch (e) {}
+  net.code = saved || newCode();
+  renderHost();
+  openHostPeer();
+}
+
+function openHostPeer() {
+  let opened = false;
+  let peer;
+  try { peer = new window.Peer(peerId(net.code), peerOpts()); }
+  catch (e) { fallbackSingle(); return; }
+  net.peer = peer;
+  const timeout = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) {} fallbackSingle(); } }, 9000);
+  peer.on("open", () => {
+    opened = true; clearTimeout(timeout);
+    net.kind = "host";
+    try { localStorage.setItem("negociopolis-code", net.code); } catch (e) {}
+    renderHost();
+  });
+  peer.on("connection", conn => {
+    conn.team = null; conn.lastN = 0;
+    conn.on("open", () => net.conns.add(conn));
+    conn.on("data", d => onHostData(conn, d));
+    conn.on("close", () => { net.conns.delete(conn); recount(); });
+    conn.on("error", () => { net.conns.delete(conn); recount(); });
+  });
+  peer.on("disconnected", () => { if (!peer.destroyed) setTimeout(() => { try { peer.reconnect(); } catch (e) {} }, 1500); });
+  peer.on("error", e => {
+    if (opened) return;
+    clearTimeout(timeout);
+    if (e && e.type === "unavailable-id" && net.tries < 3) {
+      net.tries++;
+      try { peer.destroy(); } catch (x) {}
+      net.code = newCode();
+      openHostPeer();
+      return;
+    }
+    try { peer.destroy(); } catch (x) {}
+    fallbackSingle();
+  });
+}
+
+function fallbackSingle() {
+  net.kind = "none";
+  toast("Sin conexión para celulares: se juega desde esta pantalla");
+  renderHost();
+}
+
+function recount() {
+  teamCounts = state.teams.map(() => 0);
+  net.conns.forEach(c => { if (c.team !== null && teamCounts[c.team] !== undefined) teamCounts[c.team]++; });
+  if (mode !== "host") return;
+  if (state.ph === "intro" || showingRules) renderIntro(); else renderTeams();
+}
+
+function onHostData(conn, d) {
+  if (!d || typeof d !== "object") return;
+  if (d.type === "join") {
+    const name = cleanName(d.name);
+    if (!name) return conn.send({ type: "deny", msg: "Escribe el nombre de tu equipo." });
+    let idx = state.teams.findIndex(t => norm(t.name) === norm(name));
+    if (idx === -1) {
+      if (state.ph !== "intro") return conn.send({ type: "deny", msg: "El juego ya empezó. Escribe el nombre exacto de tu equipo." });
+      if (!state.joined) { state.joined = true; state.teams = []; }
+      if (state.teams.length >= MAX_TEAMS) return conn.send({ type: "deny", msg: "Ya hay 8 equipos. Únete a uno que ya exista." });
+      state.teams.push({ name, color: TEAM_COLORS[state.teams.length], cash: 1000000, pos: 0, skip: false, maan: false, discount: false });
+      idx = state.teams.length - 1;
+    }
+    conn.team = idx;
+    conn.lastN = typeof d.n === "number" ? d.n : 0;
+    conn.send({ type: "welcome", team: idx });
+    recount();
+    publish();
+    return;
+  }
+  if (d.type === "act") {
+    if (conn.team === null || typeof d.n !== "number" || d.n <= conn.lastN) return;
+    conn.lastN = d.n;
+    if (d.st !== state.step) return;
+    doAction(String(d.type2 || ""), d.arg, conn.team);
+  }
+}
+
+/* Red: celular del equipo */
+function startJoinForm(code) {
+  mode = "team";
+  phone.status = "form";
+  if (code) phone.code = code.toUpperCase().slice(0, 4);
+  showView();
+  renderPhone();
+}
+
+function joinGame() {
+  if (typeof window.Peer !== "function") { phone.err = "Este dispositivo no puede conectarse."; renderPhone(); return; }
+  phone.status = "connecting"; phone.err = "";
+  renderPhone();
+  try { localStorage.setItem("negociopolis-phone", JSON.stringify({ code: phone.code, name: phone.name })); } catch (e) {}
+  if (!phone.peer || phone.peer.destroyed) {
+    try { phone.peer = new window.Peer("negociopolis-p-" + Math.random().toString(36).slice(2, 12), peerOpts()); }
+    catch (e) { phone.status = "form"; phone.err = "No se pudo conectar."; renderPhone(); return; }
+    phone.peer.on("open", connectToHost);
+    phone.peer.on("error", e => {
+      if (e && e.type === "peer-unavailable") {
+        if (phone.status === "connecting") { phone.status = "form"; phone.err = "No encontramos ese código. Revísalo en la pantalla."; renderPhone(); }
+        else scheduleRetry();
+      } else if (phone.status !== "form") scheduleRetry();
+    });
+    phone.peer.on("disconnected", () => { try { phone.peer.reconnect(); } catch (e) {} });
+  } else if (phone.peer.open) connectToHost();
+}
+
+function connectToHost() {
+  if (phone.conn) { try { phone.conn.close(); } catch (e) {} }
+  const conn = phone.peer.connect(peerId(phone.code), { reliable: true });
+  phone.conn = conn;
+  conn.on("open", () => conn.send({ type: "join", name: phone.name, n: phone.n }));
+  conn.on("data", d => {
+    if (!d || typeof d !== "object") return;
+    if (d.type === "welcome") { phone.team = d.team; phone.status = "in"; renderPhone(); }
+    if (d.type === "deny") { phone.status = "form"; phone.err = String(d.msg || "No se pudo unir."); try { conn.close(); } catch (e) {} renderPhone(); }
+    if (d.type === "state") { phone.snap = d.s; if (phone.status === "in") renderPhone(); }
+  });
+  conn.on("close", () => { if (phone.conn === conn && phone.status === "in") { phone.status = "lost"; renderPhone(); scheduleRetry(); } });
+}
+
+function scheduleRetry() {
+  clearTimeout(phone.retry);
+  phone.retry = setTimeout(() => {
+    if (phone.status === "form") return;
+    if (!phone.peer || phone.peer.destroyed) { phone.peer = null; joinGame(); }
+    else if (phone.peer.open) connectToHost();
+    else { try { phone.peer.reconnect(); } catch (e) {} scheduleRetry(); }
+  }, 2500);
+}
+
+function leaveGame() {
+  phone.status = "form"; phone.team = null; phone.snap = null;
+  clearTimeout(phone.retry);
+  try { localStorage.removeItem("negociopolis-phone"); } catch (e) {}
+  if (phone.conn) { try { phone.conn.close(); } catch (e) {} phone.conn = null; }
+  renderPhone();
+}
+
+function sendAct(type, arg) {
+  const s = phone.snap;
+  if (!phone.conn || !phone.conn.open || !s) return;
+  phone.n++;
+  phone.sentStep = s.st;
+  phone.conn.send({ type: "act", type2: type, arg: arg === undefined ? null : arg, n: phone.n, st: s.st });
+  renderPhone();
+}
+
+/* Celular: pantallas */
+function renderPhone() {
+  const root = document.getElementById("phone");
+  const s = phone.snap;
+  clearInterval(phone.tick);
+  if (phone.status === "form" || phone.status === "connecting") {
+    const busy = phone.status === "connecting";
+    root.innerHTML = `<h1 class="logo" style="font-size:40px;text-align:center">Negociópolis</h1>
+      <form class="pbody jform" id="jf">
+        <label for="jCode">Código del juego<input id="jCode" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="ABCD"></label>
+        <label for="jName">Nombre de su equipo<input id="jName" maxlength="24" autocomplete="off" placeholder="Ej. Los Estrategas"></label>
+        <div class="err" id="jErr"></div>
+        <button class="btn" type="submit" ${busy ? "disabled" : ""}>${busy ? "Conectando…" : "Unirme"}</button>
+      </form>
+      <button class="plink" id="back">Volver</button>`;
+    const f = root.querySelector("#jf");
+    f.querySelector("#jCode").value = phone.code;
+    f.querySelector("#jName").value = phone.name;
+    f.querySelector("#jErr").textContent = phone.err;
+    f.addEventListener("submit", e => {
+      e.preventDefault();
+      phone.code = f.querySelector("#jCode").value.trim().toUpperCase();
+      phone.name = cleanName(f.querySelector("#jName").value);
+      if (phone.code.length !== 4) { phone.err = "El código tiene 4 caracteres."; renderPhone(); return; }
+      if (!phone.name) { phone.err = "Escribe el nombre de su equipo."; renderPhone(); return; }
+      joinGame();
+    });
+    root.querySelector("#back").onclick = () => { leaveGame(); mode = "landing"; showView(); };
+    return;
+  }
+  if (phone.status === "lost" || !s || phone.team === null || !s.t[phone.team]) {
+    root.innerHTML = `<h1 class="logo" style="font-size:40px;text-align:center">Negociópolis</h1><div class="pbody"><h3>${phone.status === "lost" ? "Reconectando…" : "Conectado"}</h3><p>${phone.status === "lost" ? "Revisen que la pantalla del salón siga abierta." : "Esperando la pantalla del juego."}</p></div><button class="plink" id="change">Salir</button>`;
+    root.querySelector("#change").onclick = leaveGame;
+    return;
+  }
+  const teams = s.t;
+  const mine = teams[phone.team];
+  const flags = [mine[5] ? "MAAN" : "", mine[6] ? "−20%" : "", mine[4] ? "Pierde turno" : ""].filter(Boolean).join(" · ");
+  let html = `<div class="phead" style="background:${mine[1]}"><div><div class="nm" id="myName"></div>${flags ? `<div style="font-size:13px;font-weight:700;opacity:.9">${flags}</div>` : ""}</div><div class="cs">${money(mine[2])}</div></div>`;
+  const waiting = phone.sentStep === s.st;
+  let body = "";
+  if (s.ph === "intro") {
+    const r = RULES[phone.ruleIdx];
+    body = `<div class="pbody"><h3>¡Ya están en la pantalla!</h3><p>Esperen a que empiece. Mientras, lean las reglas.</p></div>
+      <div class="prule" style="background:${r.c}"><div style="font-weight:800;opacity:.8;font-size:13px">REGLA ${phone.ruleIdx + 1} DE ${RULES.length}</div><div class="big">${r.big}</div><p>${r.p}</p></div>
+      <button class="btn ghost" id="nextR" style="width:100%">Siguiente regla</button>`;
+  } else if (s.ph === "end") {
+    body = `<div class="pbody"><h3>Fin del juego</h3>${s.rk ? rankHtml(s.rk, teams) : ""}</div>`;
+  } else {
+    const p = s.p;
+    const turnTeam = teams[s.tu];
+    if (!p) {
+      if (s.tu === phone.team) body = `<div class="pbody"><h3>¡Es su turno!</h3><button class="btn" id="roll" ${waiting ? "disabled" : ""}>${waiting ? "Tirando…" : "Tirar dados"}</button></div>`;
+      else body = `<div class="pbody"><p>Turno de</p><h3 style="color:${turnTeam[1]}" id="turnName"></h3><p id="plog"></p></div>`;
+    } else if (p.tm !== phone.team) {
+      body = `<div class="pbody"><p><span id="otherName"></span> está en</p><h3>${SQUARES[p.sq].name}</h3><p id="plog"></p></div>`;
+    } else {
+      body = phoneCard(p, mine, waiting);
+    }
+  }
+  root.innerHTML = html + body + `<button class="plink" id="change">Salir</button>`;
+  root.querySelector("#myName").textContent = mine[0];
+  const tn = root.querySelector("#turnName"); if (tn) tn.textContent = teams[s.tu][0];
+  const on = root.querySelector("#otherName"); if (on && s.p) on.textContent = teams[s.p.tm][0];
+  const plog = root.querySelector("#plog"); if (plog) plog.textContent = s.lg;
+  root.querySelector("#change").onclick = leaveGame;
+  const nextR = root.querySelector("#nextR");
+  if (nextR) nextR.onclick = () => { phone.ruleIdx = (phone.ruleIdx + 1) % RULES.length; renderPhone(); };
+  const rollBtn = root.querySelector("#roll");
+  if (rollBtn) rollBtn.onclick = () => sendAct("roll");
+  root.querySelectorAll("[data-act]").forEach(b => b.onclick = () => sendAct(b.dataset.act, b.dataset.arg !== undefined ? +b.dataset.arg : null));
+  const pt = root.querySelector("#ptimer");
+  if (pt && s.p) {
+    const total = TIMED[s.p.k];
+    const key = s.st;
+    if (!phone.firstSeen[key]) phone.firstSeen[key] = Date.now();
+    const paint = () => {
+      const left = Math.max(0, total - Math.floor((Date.now() - phone.firstSeen[key]) / 1000));
+      pt.textContent = left ? `${left} s` : "¡Tiempo!";
+    };
+    paint();
+    phone.tick = setInterval(paint, 500);
+  }
+}
+
+function phoneCard(p, mine, waiting) {
+  const s = SQUARES[p.sq];
+  const dis = waiting ? "disabled" : "";
+  const okBtn = `<button class="btn" data-act="ok" ${dis}>Continuar</button>`;
+  const timer = `<div class="ptimer" id="ptimer"></div>`;
+  switch (p.k) {
+    case "start": return `<div class="pbody"><h3>Salida: +$100,000</h3><p>Digan algo que les ha salido bien.</p>${okBtn}</div>`;
+    case "buy": return `<div class="pbody"><h3>${s.name}</h3><p>Precio ${money(p.cost)}. Digan 2 criterios para comprar.</p>${timer}<button class="btn good" data-act="buy" ${mine[2] < p.cost || waiting ? "disabled" : ""}>Comprar</button><button class="btn ghost" data-act="pass" ${dis}>No comprar</button></div>`;
+    case "own": return `<div class="pbody"><h3>${s.name}</h3><p>Ya es suyo.</p>${okBtn}</div>`;
+    case "rent": return `<div class="pbody"><h3>Renta: ${money(p.rent)}</h3><p>Antes de negociar, digan su ideal y su límite.</p><button class="btn bad" data-act="pay" ${dis}>Pagar</button><button class="btn" data-act="neg" ${dis}>Negociar</button>${mine[5] ? `<button class="btn good" data-act="maan" ${dis}>Usar MAAN</button>` : ""}</div>`;
+    case "neg": return `<div class="pbody"><h3>¡A negociar!</h3>${timer}<p>Hablen con la otra empresa. El profesor registra el acuerdo.</p></div>`;
+    case "decision": {
+      const q = QUESTIONS[p.qi];
+      if (p.ans === null) return `<div class="pbody"><h3>${q.q}</h3>${timer}<div class="opts">${q.o.map((x, i) => `<button class="opt" data-act="answer" data-arg="${i}" ${dis}>${String.fromCharCode(65 + i)}) ${x}</button>`).join("")}</div></div>`;
+      const ok = p.ans === q.a;
+      return `<div class="pbody"><h3>${ok ? "¡Correcto! +$100,000" : "Incorrecto. −$50,000"}</h3><p>Respuesta: ${q.o[q.a]}. ${q.e}</p>${okBtn}</div>`;
+    }
+    case "event": { const ev = EVENTS[p.ei]; return `<div class="pbody"><h3>${ev.t}</h3><p>${ev.d}</p>${p.dl ? `<h3 style="color:${p.dl > 0 ? "#7fe0a8" : "#ff8a7d"}">${p.dl > 0 ? "+" : ""}${money(p.dl)}</h3>` : ""}${okBtn}</div>`; }
+    case "maan": return `<div class="pbody"><h3>¡Tienen una MAAN!</h3><p>Úsenla una vez para no pagar renta.</p>${okBtn}</div>`;
+    case "jail": return `<div class="pbody"><h3>Decisión impulsiva</h3><p>Pierden su próximo turno.</p>${okBtn}</div>`;
+    case "tablenone": return `<div class="pbody"><h3>+$50,000</h3><p>Ganan por preparar su plan.</p>${okBtn}</div>`;
+    case "table": return `<div class="pbody"><h3>Mesa de negociación</h3>${timer}<p>Elijan un negocio de otra empresa y hagan su oferta. El profesor registra el trato.</p></div>`;
+    case "rush": return `<div class="pbody"><h3>Digan las 7 fases en orden</h3>${p.rv ? "" : timer}<p>¡En voz alta! El profesor califica.</p></div>`;
+  }
+  return "";
+}
+
+/* Controles */
+document.getElementById("goHost").addEventListener("click", startHost);
+document.getElementById("goJoin").addEventListener("click", () => startJoinForm(""));
+document.getElementById("nextRule").addEventListener("click", () => {
+  if (ruleIdx < RULES.length - 1) { ruleIdx++; renderIntro(); return; }
+  if (state.ph === "intro") startGame();
+  else { showingRules = false; ruleIdx = 0; renderHost(); }
+});
+document.getElementById("prevRule").addEventListener("click", () => { if (ruleIdx > 0) { ruleIdx--; renderIntro(); } });
+document.querySelectorAll("#durRow [data-min]").forEach(b => b.addEventListener("click", () => {
+  state.minutes = +b.dataset.min; state.seconds = state.minutes * 60; publish(); renderIntro();
+}));
+document.getElementById("clockBtn").addEventListener("click", () => { clockTimer ? stopClock() : startClock(); });
+document.getElementById("endBtn").addEventListener("click", endGame);
+document.getElementById("rulesBtn").addEventListener("click", () => { showingRules = true; ruleIdx = 0; closeCard(); shownStep = -1; renderHost(); });
+document.getElementById("resetBtn").addEventListener("click", () => {
+  const c = openCard("#6b2b26", "Nueva partida", "¿Empezar de cero?", `<p>Se reinician el dinero, los negocios y el tiempo. Los equipos se quedan.</p><div class="actions"><button class="btn bad" id="y">Sí, empezar</button><button class="btn ghost" id="n">Cancelar</button></div>`);
+  c.querySelector("#y").onclick = () => {
+    clearInterval(clockTimer); clockTimer = null;
+    const st = state.step;
+    const keep = state.teams.map(t => ({ name: t.name, color: t.color }));
+    keep.joined = state.joined;
+    state = fresh(state.minutes, keep); state.step = st + 1;
+    ruleIdx = 0; shownStep = -1; closeCard(); publish(); renderHost();
+  };
+  c.querySelector("#n").onclick = () => { closeCard(); shownStep = -1; renderPending(); };
+});
+
+/* Arranque */
+state = load() || fresh(12);
+if (state.pending === undefined) state.pending = null;
+mode = "landing";
+const urlCode = new URLSearchParams(location.search).get("c");
+let savedPhone = null;
+try { savedPhone = JSON.parse(localStorage.getItem("negociopolis-phone") || "null"); } catch (e) {}
+if (urlCode) {
+  phone.name = savedPhone && savedPhone.code === urlCode.toUpperCase() ? savedPhone.name : "";
+  startJoinForm(urlCode);
+} else if (savedPhone && savedPhone.code && savedPhone.name) {
+  phone.code = savedPhone.code; phone.name = savedPhone.name;
+  startJoinForm(savedPhone.code);
+  joinGame();
+} else if (state.ph !== "intro") {
+  startHost();
+} else {
+  showView();
+}
+
+</script>
+</body>
+</html>
